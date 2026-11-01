@@ -21,7 +21,7 @@ A personal finance tracker where you log income and expenses, tag them with cate
 | :--- | :--- |
 | **Frontend** | React 19 + Vite, DM Sans / Manrope fonts |
 | **Backend** | Node.js + Express (ESM) |
-| **Database** | SQLite via `better-sqlite3` (WAL mode, foreign keys ON) |
+| **Database** | PostgreSQL via Supabase and `pg` |
 | **Styling** | Custom CSS — responsive desktop/mobile layout |
 | **Validation** | Client-side + independent server-side field validation |
 
@@ -46,7 +46,7 @@ A personal finance tracker where you log income and expenses, tag them with cate
 task-2-expense-tracker/
 ├── backend/
 │   ├── src/
-│   │   ├── db.js              # SQLite connection, schema, summary helper
+│   │   ├── db.js              # PostgreSQL pool, migration runner, summary helper
 │   │   ├── server.js          # Express entry point
 │   │   ├── validation.js      # Server-side field validation
 │   │   └── routes/
@@ -76,7 +76,7 @@ task-2-expense-tracker/
 
 ## API Reference
 
-**Base URL:** `http://localhost:5002/api`
+**Base URL:** `http://localhost:5000/api`
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -126,14 +126,14 @@ task-2-expense-tracker/
 - Node.js v22+
 - npm
 
-### Backend (port 5002)
+### Backend (port 5000)
 
 ```bash
 cd task-2-expense-tracker/backend
 npm install
 cp .env.example .env
 npm run dev
-# API running at http://localhost:5002
+# API running at http://localhost:5000
 ```
 
 ### Frontend (port 5173)
@@ -149,7 +149,7 @@ npm run dev
 ### From the repo root
 
 ```bash
-npm run backend:task2   # Start backend  → http://localhost:5002
+npm run backend:task2   # Start backend  → http://localhost:5000
 npm run frontend:task2  # Start frontend → http://localhost:5173
 ```
 
@@ -160,6 +160,6 @@ npm run frontend:task2  # Start frontend → http://localhost:5173
 | Target | Platform | Config |
 | :--- | :--- | :--- |
 | Frontend | Netlify | Base: `frontend`, Build: `npm run build`, Publish: `dist`, Env: `VITE_API_URL` |
-| Backend | Render | Root: `backend`, Start: `npm start`, Env: `PORT`, `CLIENT_ORIGIN`, `DATABASE_PATH` |
+| Backend | Render | Root: `backend`, Start: `npm start`, Env: `DATABASE_URL`, `PORT`, `CLIENT_ORIGIN`, `NODE_ENV` |
 
-> **Persistence note:** SQLite is only persistent when the host preserves the file between restarts. Use a persistent disk on Render and set `DATABASE_PATH` to a mount path like `/var/data/expenses.db`.
+> See [DATABASE_SETUP.md](./DATABASE_SETUP.md) for Supabase, Render, migration, and connection configuration.

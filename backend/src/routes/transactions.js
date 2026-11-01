@@ -1,61 +1,77 @@
 import { Router } from 'express';
-import { db, getSummary } from '../db.js';
+import { query, getSummary } from '../db.js';
 import { validateTransaction } from '../validation.js';
 
 const router = Router();
 
-router.get('/summary', (_req, res) => {
-  res.json({ summary: getSummary() });
+router.get('/summary', async (_req, res, next) => {
+  try {
+    res.json({ summary: await getSummary() });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res, next) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 100) : '';
   const type = typeof req.query.type === 'string' ? req.query.type : 'all';
   if (!['all', 'income', 'expense'].includes(type)) {
     return res.status(400).json({ message: 'Type filter must be all, income, or expense.' });
   }
   const conditions = [];
-  const params = {};
+  const params = [];
   if (type !== 'all') {
-    conditions.push('type = @type');
-    params.type = type;
+    params.push(type);
+    conditions.push(`type = $${params.length}`);
   }
   if (search) {
-    conditions.push('(LOWER(title) LIKE @search ESCAPE \'\\\' OR LOWER(category) LIKE @search ESCAPE \'\\\' OR LOWER(notes) LIKE @search ESCAPE \'\\\')');
-    params.search = `%${search.toLowerCase().replace(/[\\%_]/g, '\\$&')}%`;
+    params.push(`%${search.toLowerCase()}%`);
+    const placeholder = `$${params.length}`;
+    conditions.push(`(LOWER(title) LIKE LOWER(${placeholder}) OR LOWER(category) LIKE LOWER(${placeholder}) OR LOWER(notes) LIKE LOWER(${placeholder}))`);
   }
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  const transactions = db.prepare(`
-    SELECT id, type, title, amount, category, date, notes, created_at AS createdAt
-    FROM transactions ${where}
-    ORDER BY date DESC, id DESC
-  `).all(params);
-  res.json({ transactions });
+  try {
+    const result = await query(`
+      SELECT id, type, title, amount, category, to_char(date, 'YYYY-MM-DD') AS date,
+             notes, created_at AS "createdAt"
+      FROM transactions ${where}
+      ORDER BY date DESC, id DESC
+    `, params);
+    res.json({ transactions: result.rows.map((row) => ({ ...row, amount: Number(row.amount) })) });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res, next) => {
   const result = validateTransaction(req.body || {});
   if (!result.valid) {
     return res.status(400).json({ message: 'Please correct the transaction details.', errors: result.errors });
   }
   const { type, title, amount, category, date, notes } = result.value;
-  const insert = db.prepare(`
-    INSERT INTO transactions (type, title, amount, category, date, notes)
-    VALUES (@type, @title, @amount, @category, @date, @notes)
-  `);
-  const info = insert.run({ type, title, amount, category, date, notes });
-  const transaction = db.prepare(`
-    SELECT id, type, title, amount, category, date, notes, created_at AS createdAt
-    FROM transactions WHERE id = ?
-  `).get(info.lastInsertRowid);
-  res.status(201).json({ message: 'Transaction created.', transaction, summary: getSummary() });
+  try {
+    const inserted = await query(`
+      INSERT INTO transactions (type, title, amount, category, date, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, type, title, amount, category,
+                to_char(date, 'YYYY-MM-DD') AS date, notes, created_at AS "createdAt"
+    `, [type, title, amount, category, date, notes]);
+    const transaction = { ...inserted.rows[0], amount: Number(inserted.rows[0].amount) };
+    res.status(201).json({ message: 'Transaction created.', transaction, summary: await getSummary() });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res, next) => {
   if (!/^\d+$/.test(req.params.id)) return res.status(400).json({ message: 'Transaction ID must be a positive integer.' });
-  const result = db.prepare('DELETE FROM transactions WHERE id = ?').run(Number(req.params.id));
-  if (!result.changes) return res.status(404).json({ message: 'Transaction was not found.' });
-  res.json({ message: 'Transaction deleted.', summary: getSummary() });
+  try {
+    const deleted = await query('DELETE FROM transactions WHERE id = $1', [Number(req.params.id)]);
+    if (deleted.rowCount === 0) return res.status(404).json({ message: 'Transaction was not found.' });
+    res.json({ message: 'Transaction deleted.', summary: await getSummary() });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

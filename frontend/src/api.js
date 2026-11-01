@@ -1,5 +1,5 @@
 // Normalize URL: works whether VITE_API_URL includes /api or not
-const _raw = (import.meta.env.VITE_API_URL || 'http://localhost:5002/api').replace(/\/$/, '');
+const _raw = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/$/, '');
 const API_BASE = _raw.endsWith('/api') ? _raw : _raw + '/api';
 
 async function request(path, options = {}) {

@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import transactionsRouter from '../src/routes/transactions.js';
+import { initializeDatabase } from '../src/db.js';
 
 const app = express();
 
@@ -13,6 +14,13 @@ const corsOptions = clientOriginEnv
 app.disable('x-powered-by');
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '20kb' }));
+
+let initialization;
+const ensureDatabase = (_req, _res, next) => {
+  initialization ??= initializeDatabase();
+  initialization.then(() => next()).catch(next);
+};
+app.use(ensureDatabase);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', service: 'CodeNova Expense Tracker API' }));
 app.use('/api/transactions', transactionsRouter);

@@ -20,3 +20,6 @@ Thumbs.db
 *.db-shm
 backend/data/*
 !backend/data/.gitkeep
+.env
+.env.*
+!.env.example

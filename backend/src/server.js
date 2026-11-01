@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import transactionsRouter from './routes/transactions.js';
-import { db } from './db.js';
+import { initializeDatabase, closeDatabase } from './db.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 5002;
@@ -29,18 +29,32 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ message: 'Unexpected server error. Please try again.' });
 });
 
-const server = app.listen(port, () => {
-  console.log(`Expense Tracker API running on port ${port}`);
-  console.log(`SQLite database ready at ${process.env.DATABASE_PATH || 'backend/data/expenses.db'}`);
-});
+let server;
 
-function shutdown() {
-  server.close(() => {
-    db.close();
+async function start() {
+  try {
+    await initializeDatabase();
+    server = app.listen(port, () => {
+      console.log(`Expense Tracker API running on port ${port}`);
+      console.log('PostgreSQL database ready.');
+    });
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    process.exit(1);
+  }
+}
+
+async function shutdown() {
+  if (!server) {
+    await closeDatabase();
+    process.exit(0);
+  }
+  server.close(async () => {
+    await closeDatabase();
     process.exit(0);
   });
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-
+await start();
